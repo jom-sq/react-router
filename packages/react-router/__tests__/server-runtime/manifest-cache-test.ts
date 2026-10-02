@@ -97,11 +97,13 @@ describe("manifest route ID cache", () => {
     let { reads, manifest } = fixture();
     await manifest("/items/a");
     reads.mockClear();
-    let mismatch = await manifest("/items/a", "other-version");
+    let mismatch = await manifest("/items/cold", "other-version");
     expect(mismatch.status).toBe(204);
     expect(mismatch.headers.get("X-Remix-Reload-Document")).toBe("true");
     expect((await manifest("/items/" + "x".repeat(8000))).status).toBe(400);
     expect(reads).not.toHaveBeenCalled();
+    await manifest("/items/cold");
+    expect(reads).toHaveBeenCalledTimes(1);
   });
 
   it("does not share entries across handlers or replacement builds", async () => {

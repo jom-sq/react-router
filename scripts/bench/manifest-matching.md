@@ -1,9 +1,17 @@
 # Server manifest matching prototype
 
+[MODES: framework]
+
 This prototype applies to conventional Framework Mode's lazy manifest endpoint.
 It caches ordered route IDs per static handler, with a 256-path LRU and a
 1,024-character key limit. It continues reading assets for every response.
 The cache does not apply to document or data requests.
+
+This prototype reuses matching only when an object build is passed to
+`createRequestHandler`. Build callbacks, including the documented custom adapter
+pattern, derive a new static handler on every request and would not reuse this
+cache. The benchmark uses object builds. Extending reuse to callback builds
+requires an agreed contract for when matching inputs can change.
 
 The benchmark generates 1,001 routes from 200 sections, with dynamic, index,
 detail and static-exception routes. It compares the real built server handler
