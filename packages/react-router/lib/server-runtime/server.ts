@@ -362,6 +362,41 @@ export const createRequestHandler: CreateRequestHandlerFunction = (
   };
 };
 
+const manifestMatches = new WeakMap<StaticHandler, Map<string, string[]>>();
+const MANIFEST_MATCH_LIMIT = 256;
+const MANIFEST_KEY_LENGTH_LIMIT = 1024;
+
+function getManifestRouteIds(
+  build: ServerBuild,
+  staticHandler: StaticHandler,
+  pathname: string,
+): string[] {
+  let matchIds = () =>
+    (matchServerRoutes(build.routes, staticHandler, pathname) || []).map(
+      (match) => match.route.id,
+    );
+  if (pathname.length > MANIFEST_KEY_LENGTH_LIMIT) return matchIds();
+
+  // Matching inputs belong to this static handler; response assets stay live.
+  let cache = manifestMatches.get(staticHandler);
+  if (!cache) {
+    cache = new Map();
+    manifestMatches.set(staticHandler, cache);
+  }
+  let ids = cache.get(pathname);
+  if (ids !== undefined) {
+    cache.delete(pathname);
+    cache.set(pathname, ids);
+    return ids;
+  }
+  ids = matchIds();
+  if (cache.size >= MANIFEST_MATCH_LIMIT) {
+    cache.delete(cache.keys().next().value!);
+  }
+  cache.set(pathname, ids);
+  return ids;
+}
+
 async function handleManifestRequest(
   build: ServerBuild,
   staticHandler: StaticHandler,
@@ -392,14 +427,10 @@ async function handleManifestRequest(
       if (!path.startsWith("/")) {
         path = `/${path}`;
       }
-      let matches = matchServerRoutes(build.routes, staticHandler, path);
-      if (matches) {
-        for (let match of matches) {
-          let routeId = match.route.id;
-          let route = build.assets.routes[routeId];
-          if (route) {
-            patches[routeId] = route;
-          }
+      for (let routeId of getManifestRouteIds(build, staticHandler, path)) {
+        let route = build.assets.routes[routeId];
+        if (route) {
+          patches[routeId] = route;
         }
       }
     }
